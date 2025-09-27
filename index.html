@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>团队新闻空间 - 云端同步版</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .glass-effect {background: rgba(255,255,255,0.95);backdrop-filter: blur(8px);box-shadow: 0 8px 32px rgba(31,38,135,0.08);border: 1px solid rgba(255,255,255,0.18);}
+    .content-card {transition: all .25s ease;}
+    .content-card:hover {transform: translateY(-6px);box-shadow: 0 12px 28px rgba(0,0,0,0.08);}
+    .like-animate {animation: heartbeat .4s ease;}
+    @keyframes heartbeat {0%{transform:scale(1);}30%{transform:scale(1.3);}60%{transform:scale(0.9);}100%{transform:scale(1);}}
+    .comment-bubble {background:#f3f4f6;border-radius:1rem;padding:.5rem .75rem;max-width:90%;}
+    #syncIndicator {position:fixed;left:16px;bottom:16px;padding:8px 10px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.08);}
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+<nav class="glass-effect sticky top-0 z-50">
+  <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+    <div class="flex items-center space-x-3">
+      <i class="bi bi-newspaper text-3xl text-indigo-600"></i>
+      <h1 class="text-2xl font-bold text-gray-800">团队新闻空间（云端同步）</h1>
+    </div>
+    <div class="flex items-center space-x-4">
+      <span id="currentUser" class="text-gray-700"></span>
+      <button id="logoutBtn" onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg hidden">
+        <i class="bi bi-box-arrow-right"></i> 退出
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="container mx-auto px-4 py-8">
+  <div id="loginSection" class="max-w-md mx-auto">
+    <div class="glass-effect rounded-2xl p-8">
+      <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">欢迎</h2>
+      <input id="nameInput" placeholder="姓名" class="w-full p-3 rounded mb-3 border"/>
+      <div class="flex space-x-2">
+        <input id="pwdInput" placeholder="密码（如 admin）" class="flex-1 p-3 rounded border"/>
+        <button onclick="login()" class="bg-indigo-600 text-white px-4 py-2 rounded">进入</button>
+      </div>
+      <p class="text-sm text-gray-500 mt-3">注：管理员用户名为 <code>admin</code></p>
+    </div>
+  </div>
+
+  <div id="contentSection" class="hidden">
+    <div class="mb-6 flex items-center space-x-3">
+      <button onclick="showTab('news')" id="newsTab" class="bg-indigo-600 text-white px-4 py-2 rounded">新闻</button>
+      <button onclick="showTab('media')" id="mediaTab" class="px-4 py-2 rounded">媒体</button>
+      <button onclick="showTab('wishes')" id="wishesTab" class="px-4 py-2 rounded">愿望池</button>
+      <button onclick="showTab('admin')" id="adminTab" class="px-4 py-2 rounded hidden">后台</button>
+      <div class="ml-auto flex items-center space-x-2">
+        <button onclick="manualSync()" class="bg-yellow-400 px-3 py-2 rounded">手动同步</button>
+        <button onclick="forceReload()" class="bg-gray-200 px-3 py-2 rounded">重新加载</button>
+      </div>
+    </div>
+
+    <!-- news -->
+    <div id="newsContent">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="newsGrid"></div>
+    </div>
+
+    <!-- media -->
+    <div id="mediaContent" class="hidden">
+      <div class="mb-4">
+        <input type="file" id="mediaFile" accept="image/*,video/*" />
+        <button onclick="uploadMedia()" class="bg-green-600 text-white px-4 py-2 rounded">上传媒体</button>
+        <div id="uploadProgress" class="w-full h-3 bg-gray-200 rounded overflow-hidden mt-2 hidden"><div id="uploadBar" style="height:100%;width:0%"></div></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="mediaGrid"></div>
+    </div>
+
+    <!-- wishes -->
+    <div id="wishesContent" class="hidden">
+      <div class="glass-effect p-4 rounded">
+        <textarea id="wishText" rows="3" class="w-full p-3 rounded border" placeholder="写下你的愿望"></textarea>
+        <div class="flex items-center mt-2 space-x-2">
+          <label><input type="radio" name="wishPrivacy" value="public" checked/> 公开</label>
+          <label><input type="radio" name="wishPrivacy" value="anonymous"/> 匿名</label>
+          <button onclick="submitWish()" class="ml-auto bg-indigo-600 text-white px-3 py-2 rounded">提交</button>
+        </div>
+      </div>
+      <div id="wishList" class="mt-4 space-y-3"></div>
+    </div>
+
+    <!-- admin -->
+    <div id="adminContent" class="hidden">
+      <div class="glass-effect p-4 rounded mb-4">
+        <h3 class="font-bold">发布新闻</h3>
+        <input id="newsTitle" placeholder="标题" class="w-full p-2 border rounded mb-2"/>
+        <textarea id="newsBody" placeholder="内容" class="w-full p-2 border rounded mb-2"></textarea>
+        <input type="file" id="newsImage" accept="image/*" />
+        <button onclick="uploadNews()" class="bg-green-600 text-white px-4 py-2 rounded">上传新闻</button>
+      </div>
+      <div class="glass-effect p-4 rounded">
+        <h3 class="font-bold">在线用户</h3>
+        <div id="onlineList" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="syncIndicator" class="glass-effect">同步状态: <span id="syncDot">🟢</span></div>
+
+<!-- viewer modal -->
+<div id="viewerModal" class="fixed inset-0 hidden items-center justify-center z-50">
+  <div class="absolute inset-0 bg-black/60" onclick="closeViewer()"></div>
+  <div class="relative bg-white p-6 rounded w-11/12 md:w-3/4 lg:w-1/2 z-50 max-h-[85vh] overflow-auto">
+    <button class="absolute right-4 top-4" onclick="closeViewer()"><i class="bi bi-x-lg text-2xl"></i></button>
+    <div id="viewerContent"></div>
+    <div class="mt-4">
+      <div class="flex items-center space-x-3">
+        <button id="likeBtn" onclick="toggleLike()" class="bg-red-500 text-white px-3 py-2 rounded"><i id="likeIcon" class="bi bi-heart"></i> <span id="likeCount">0</span></button>
+        <input id="commentInput" class="flex-1 p-2 border rounded" placeholder="写评论，回车提交" onkeydown="if(event.key==='Enter'){submitComment();}"/>
+        <button onclick="submitComment()" class="bg-indigo-600 text-white px-3 py-2 rounded">提交</button>
+      </div>
+      <div id="commentList" class="mt-4 space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== Config ========= */
+const API_BASE = ''; // same origin
+const POLL_INTERVAL = 3000;
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+let currentUser = '';
+let isAdmin = false;
+let lastUpdate = 0;
+let currentContent = null;
+
+/* ========== Helpers ========= */
+function showToast(msg){ alert(msg); }
+function qs(id){ return document.getElementById(id); }
+function showTab(t){
+  ['news','media','wishes','admin'].forEach(x=>{ document.getElementById(x+'Content').classList.add('hidden'); });
+  document.getElementById(t+'Content').classList.remove('hidden');
+}
+function login(){
+  const name = qs('nameInput').value.trim();
+  const pwd = qs('pwdInput').value.trim();
+  if(!name){ showToast('请输入姓名'); return; }
+  currentUser = name;
+  isAdmin = (name==='admin' || pwd==='admin');
+  qs('currentUser').textContent = '欢迎，' + name;
+  qs('loginSection').classList.add('hidden');
+  qs('contentSection').classList.remove('hidden');
+  if(isAdmin) qs('adminTab').classList.remove('hidden'); else qs('adminTab').classList.add('hidden');
+  // heartbeat
+  fetch('/api/heartbeat', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, deviceId: localStorage.getItem('device_id')||null})});
+  renderAll();
+}
+
+/* ========== Sync (polling) ========= */
+async function checkUpdates(){
+  try{
+    qs('syncDot').textContent = '🟡'; // syncing
+    const res = await fetch('/api/state?since=' + lastUpdate);
+    if(!res.ok) throw new Error('sync failed');
+    const j = await res.json();
+    if(j.updated){
+      lastUpdate = j.lastUpdate;
+      applyState(j.data);
+    } else {
+      // no update
+    }
+    qs('syncDot').textContent = '🟢';
+  }catch(e){
+    qs('syncDot').textContent = '🔴';
+    console.error('sync error', e);
+  }
+}
+function manualSync(){ checkUpdates(); showToast('已手动同步'); }
+function forceReload(){ location.reload(); }
+
+/* ========== Apply server state ========= */
+function applyState(data){
+  // update UI lists
+  renderNewsFrom(data.news||[]);
+  renderMediaFrom(data.media||[]);
+  renderWishesFrom(data.wishes||[]);
+  renderOnlineFrom(data.online||{});
+  // update lastUpdate if provided
+  lastUpdate = data.lastUpdate || Date.now();
+}
+
+/* ========== Renderers ========= */
+function renderNewsFrom(news){
+  const grid = qs('newsGrid'); grid.innerHTML = '';
+  news.forEach(n=>{
+    const card = document.createElement('div'); card.className='glass-effect p-4 rounded content-card cursor-pointer';
+    card.innerHTML = `<h3 class="font-bold">${n.title}</h3><p class="text-sm text-gray-600 line-clamp-3">${n.body}</p><div class="text-xs text-gray-400 mt-2">作者:${n.author} 时间:${n.time}</div>`;
+    card.onclick = ()=> openViewer('news', n.id, n);
+    grid.appendChild(card);
+  });
+}
+function renderMediaFrom(media){
+  const grid = qs('mediaGrid'); grid.innerHTML = '';
+  media.forEach(m=>{
+    const d = document.createElement('div'); d.className='glass-effect p-3 rounded content-card cursor-pointer';
+    if(m.type && m.type.startsWith('image')){
+      d.innerHTML = `<img src="${m.url}" class="rounded w-full" />`;
+    } else {
+      d.innerHTML = `<div class="relative"><video src="${m.url}" class="rounded w-full" muted playsinline></video><div class="absolute inset-0 flex items-center justify-center pointer-events-none"><i class="bi bi-play-circle-fill text-6xl text-white/80"></i></div></div>`;
+    }
+    d.onclick = ()=> openViewer('media', m.id, m);
+    grid.appendChild(d);
+  });
+}
+function renderWishesFrom(wishes){
+  const el = qs('wishList'); el.innerHTML = '';
+  wishes.forEach(w=>{
+    const d = document.createElement('div'); d.className='p-3 bg-white rounded';
+    d.innerHTML = `<div class="flex justify-between"><strong>${w.author}</strong><span class="text-xs text-gray-400">${w.time}</span></div><p class="mt-2">${w.text}</p>`;
+    el.appendChild(d);
+  });
+}
+function renderOnlineFrom(online){
+  const el = qs('onlineList'); if(!el) return; el.innerHTML='';
+  Object.keys(online||{}).forEach(k=>{
+    const item = document.createElement('div'); item.className='p-2 border rounded';
+    item.textContent = `${k} (last: ${new Date(online[k].last).toLocaleString()})`;
+    el.appendChild(item);
+  });
+}
+
+/* ========== CRUD actions ========= */
+async function uploadNews(){
+  const title = qs('newsTitle').value.trim();
+  const body = qs('newsBody').value.trim();
+  const file = qs('newsImage').files[0];
+  if(!title || !body) return showToast('请输入标题和内容');
+  const form = new FormData();
+  form.append('title', title);
+  form.append('body', body);
+  form.append('author', currentUser);
+  if(file){
+    if(file.size > MAX_FILE_SIZE) return showToast('文件过大');
+    // compress image if image
+    if(file.type.startsWith('image/')){
+      const compressed = await compressImage(file, 1920, 0.8);
+      form.append('image', compressed, file.name);
+    } else {
+      form.append('image', file);
+    }
+  }
+  const res = await fetch('/api/news', {method:'POST', body: form});
+  if(res.ok){ showToast('新闻上传成功'); checkUpdates(); } else showToast('上传失败');
+}
+
+async function uploadMedia(){
+  const file = qs('mediaFile').files[0];
+  if(!file) return showToast('请选择文件');
+  if(file.size > MAX_FILE_SIZE) return showToast('文件超过100MB');
+  const form = new FormData();
+  form.append('author', currentUser);
+  let toUpload = file;
+  if(file.type.startsWith('image/')){
+    toUpload = await compressImage(file, 1920, 0.8);
+  }
+  form.append('media', toUpload, file.name);
+
+  // use XMLHttpRequest to track progress
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/media', true);
+  xhr.upload.onprogress = function(e){
+    if(e.lengthComputable){
+      const pct = Math.round(e.loaded / e.total * 100);
+      qs('uploadProgress').classList.remove('hidden');
+      qs('uploadBar').style.width = pct + '%';
+    }
+  };
+  xhr.onload = function(){
+    qs('uploadProgress').classList.add('hidden');
+    qs('uploadBar').style.width = '0%';
+    if(xhr.status === 200) { showToast('上传成功'); checkUpdates(); } else { showToast('上传失败'); }
+  };
+  xhr.onerror = function(){ showToast('上传出错'); };
+  xhr.send(form);
+}
+
+async function submitWish(){
+  const text = qs('wishText').value.trim();
+  const priv = document.querySelector('input[name="wishPrivacy"]:checked').value;
+  if(!text) return showToast('请输入愿望');
+  const res = await fetch('/api/wish', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text, privacy: priv, author: currentUser})});
+  if(res.ok){ qs('wishText').value=''; checkUpdates(); showToast('提交成功'); } else showToast('失败');
+}
+
+/* ========== Viewer / Comments / Likes ========= */
+function openViewer(type, id, item){
+  currentContent = { type, id };
+  qs('viewerContent').innerHTML = '';
+  if(type === 'news'){
+    qs('viewerContent').innerHTML = `<h2 class="text-2xl font-bold">${item.title}</h2>${item.img?`<img src="${item.img}" class="mt-3 rounded w-full"/>`:''}<p class="mt-3">${item.body}</p><div class="text-xs text-gray-400 mt-2">作者:${item.author} 时间:${item.time}</div>`;
+  } else {
+    if(item.type && item.type.startsWith('image')) qs('viewerContent').innerHTML = `<img src="${item.url}" class="w-full rounded"/>`;
+    else qs('viewerContent').innerHTML = `<video src="${item.url}" controls class="w-full rounded"></video>`;
+  }
+  // likes
+  loadLikesFor(type, id);
+  // comments
+  loadCommentsFor(type, id);
+  qs('viewerModal').classList.remove('hidden');
+}
+function closeViewer(){ qs('viewerModal').classList.add('hidden'); qs('commentList').innerHTML=''; qs('commentInput').value=''; }
+
+async function loadLikesFor(type,id){
+  // get likes from server via /api/state (simple approach)
+  const res = await fetch('/api/state');
+  if(!res.ok) return;
+  const j = await res.json();
+  const key = type + '_' + id;
+  const info = (j.data && j.data.likes && j.data.likes[key]) || {count:0, users:[]};
+  qs('likeCount').textContent = info.count || 0;
+  if(info.users.includes(currentUser)) qs('likeIcon').className = 'bi bi-heart-fill'; else qs('likeIcon').className = 'bi bi-heart';
+}
+
+async function toggleLike(){
+  if(!currentUser || !currentContent) return showToast('请先登录并选择内容');
+  const key = currentContent.type + '_' + currentContent.id;
+  const res = await fetch('/api/like', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key, user: currentUser})});
+  if(res.ok){ loadLikesFor(currentContent.type, currentContent.id); checkUpdates(); }
+}
+
+async function loadCommentsFor(type,id){
+  const res = await fetch('/api/state');
+  if(!res.ok) return;
+  const j = await res.json();
+  const key = type + '_' + id;
+  const arr = (j.data && j.data.comments && j.data.comments[key]) || [];
+  const el = qs('commentList'); el.innerHTML = '';
+  arr.forEach(c=>{
+    const d = document.createElement('div'); d.className='p-2 border rounded';
+    d.innerHTML = `<strong>${c.author}</strong><div class="text-sm">${c.text}</div><div class="text-xs text-gray-400">${c.time}</div>`;
+    el.appendChild(d);
+  });
+}
+
+async function submitComment(){
+  if(!currentUser || !currentContent) return showToast('请先登录并选择内容');
+  const text = qs('commentInput').value.trim();
+  if(!text) return;
+  const key = currentContent.type + '_' + currentContent.id;
+  const res = await fetch('/api/comment', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key, author: currentUser, text})});
+  if(res.ok){ qs('commentInput').value=''; loadCommentsFor(currentContent.type,currentContent.id); checkUpdates(); }
+}
+
+/* ========== Likes/comments utilities done above ========= */
+
+/* ========== Image compression util ========= */
+function compressImage(file, maxEdge=1920, quality=0.8){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = function(e){
+      img.onload = function(){
+        let w = img.width, h = img.height;
+        if(Math.max(w,h) > maxEdge){
+          const ratio = maxEdge / Math.max(w,h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob)=>{
+          if(!blob) return resolve(file);
+          // convert blob to File
+          const newFile = new File([blob], file.name, { type: blob.type });
+          resolve(newFile);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = ()=> resolve(file);
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ========== Initialization & polling ========= */
+async function renderAll(){
+  try{
+    const res = await fetch('/api/state');
+    const j = await res.json();
+    if(j && j.data) applyState(j.data);
+    lastUpdate = j.lastUpdate || Date.now();
+  }catch(e){ console.error(e); }
+}
+setInterval(checkUpdates, POLL_INTERVAL);
+
+/* ========== Startup: device id management ========= */
+if(!localStorage.getItem('device_id')) localStorage.setItem('device_id', 'dev_' + Math.random().toString(36).slice(2,10));
+
+</script>
+</body>
+</html>
