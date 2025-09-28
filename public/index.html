@@ -12,14 +12,18 @@
   .btn:hover { transform: translateY(-2px); }
   .three-cols { display:grid; grid-template-columns: 1fr; gap:12px; }
   @media(min-width:900px){ .three-cols { grid-template-columns: 1fr 1fr 1fr; } }
+  .modal {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:50;}
+  .modal img,.modal video{max-width:90%;max-height:90%;border-radius:8px;}
 </style>
 </head>
 <body class="min-h-screen">
+
+<!-- 登录页面 -->
 <div id="loginRoot" class="min-h-screen flex items-center justify-center p-6">
   <div class="w-full max-w-md glass p-6">
     <h1 class="text-2xl font-bold mb-3 text-center">欢迎使用 · 团队空间</h1>
-    <p class="text-sm text-gray-400 mb-6 text-center">请输入中文姓名（至少2个字）进入</p>
-    <input id="inputName" class="w-full p-3 rounded bg-gray-900 border border-gray-800 placeholder-gray-500" placeholder="例如：张三" />
+    <p class="text-sm text-gray-400 mb-6 text-center">客户请输入中文姓名（至少2个字），管理员输入 guangminghui</p>
+    <input id="inputName" class="w-full p-3 rounded bg-gray-900 border border-gray-800 placeholder-gray-500" placeholder="请输入姓名" />
     <div id="adminPassWrapper" class="mt-3 hidden">
       <input id="inputAdminPass" type="password" class="w-full p-3 rounded bg-gray-900 border border-gray-800" placeholder="管理员密码" />
     </div>
@@ -28,17 +32,191 @@
     </div>
   </div>
 </div>
+
+<!-- 主界面 -->
 <div id="appRoot" class="hidden min-h-screen p-4">
   <header class="flex items-center justify-between mb-4">
     <div class="text-2xl font-bold">团队新闻空间</div>
-    <button id="btnLogout" class="btn px-3 py-1 bg-gray-800 rounded">退出</button>
+    <div class="flex items-center gap-3">
+      <div id="onlineUsers" class="text-sm text-gray-400">在线用户：0</div>
+      <button id="btnLogout" class="btn px-3 py-1 bg-gray-800 rounded">退出</button>
+    </div>
   </header>
+
   <div class="three-cols mb-6" id="threeCols">
-    <section id="colNews"><h2 class="text-lg mb-3">云善绘新闻</h2><div id="newsList"></div></section>
-    <section id="colMedia"><h2 class="text-lg mb-3">视频与照片</h2><div id="mediaGrid" class="grid grid-cols-2 gap-2"></div></section>
-    <section id="colWish"><h2 class="text-lg mb-3">愿望池</h2><div id="wishList"></div></section>
+    <section id="colNews">
+      <h2 class="text-lg mb-3">云善绘新闻</h2>
+      <div id="newsList"></div>
+      <div id="adminNewsForm" class="hidden mt-4">
+        <textarea id="newsText" class="w-full p-2 rounded bg-gray-900 border border-gray-700" placeholder="输入新闻内容"></textarea>
+        <input type="file" id="newsFile" class="mt-2"/>
+        <button id="btnPostNews" class="btn mt-2 px-3 py-1 bg-blue-600 rounded">发布新闻</button>
+      </div>
+    </section>
+
+    <section id="colMedia">
+      <h2 class="text-lg mb-3">视频与照片</h2>
+      <div id="mediaGrid" class="grid grid-cols-2 gap-2"></div>
+      <div id="adminMediaForm" class="hidden mt-4">
+        <input type="file" id="mediaFile" />
+        <button id="btnUploadMedia" class="btn mt-2 px-3 py-1 bg-green-600 rounded">上传媒体</button>
+        <div id="uploadProgress" class="text-sm text-gray-400"></div>
+      </div>
+    </section>
+
+    <section id="colWish">
+      <h2 class="text-lg mb-3">愿望池</h2>
+      <div id="wishList"></div>
+      <div class="mt-3 flex gap-2">
+        <input id="wishInput" class="flex-1 p-2 rounded bg-gray-900 border border-gray-700" placeholder="写下你的愿望..."/>
+        <button id="btnWish" class="btn px-3 py-1 bg-purple-600 rounded">发布</button>
+      </div>
+    </section>
   </div>
+  <div id="syncStatus" class="fixed bottom-2 left-2 text-sm">🟡 正在同步...</div>
 </div>
-<script>console.log("前端已加载")</script>
+
+<div id="modal" class="modal hidden"><div id="modalContent"></div></div>
+
+<script>
+const ADMIN_NAME = "guangminghui";
+const ADMIN_PASS = "guangminghui888";
+
+const loginRoot = document.getElementById('loginRoot');
+const appRoot = document.getElementById('appRoot');
+const inputName = document.getElementById('inputName');
+const inputAdminPass = document.getElementById('inputAdminPass');
+const adminPassWrapper = document.getElementById('adminPassWrapper');
+const btnLogin = document.getElementById('btnLogin');
+const btnLogout = document.getElementById('btnLogout');
+const syncStatus = document.getElementById('syncStatus');
+const onlineUsers = document.getElementById('onlineUsers');
+
+const adminNewsForm = document.getElementById('adminNewsForm');
+const adminMediaForm = document.getElementById('adminMediaForm');
+const modal = document.getElementById('modal');
+const modalContent = document.getElementById('modalContent');
+
+let state = { me:null, isAdmin:false };
+
+// 输入判断
+inputName.addEventListener('input', ()=>{
+  if(inputName.value.trim() === ADMIN_NAME){
+    adminPassWrapper.classList.remove('hidden');
+  } else {
+    adminPassWrapper.classList.add('hidden');
+  }
+});
+
+// 登录
+btnLogin.addEventListener('click', ()=>{
+  const name = inputName.value.trim();
+  if(!name){ alert("请输入名字"); return; }
+  if(name === ADMIN_NAME){
+    if(inputAdminPass.value !== ADMIN_PASS){ alert("管理员密码错误"); return; }
+    state.isAdmin = true;
+  } else {
+    if(!/^[\u4e00-\u9fa5]{2,}$/.test(name)){ alert("客户姓名必须是两个以上中文"); return; }
+    state.isAdmin = false;
+  }
+  state.me = name;
+  loginRoot.classList.add("hidden");
+  appRoot.classList.remove("hidden");
+  if(state.isAdmin){ adminNewsForm.classList.remove("hidden"); adminMediaForm.classList.remove("hidden"); }
+  syncData();
+});
+
+// 登出
+btnLogout.addEventListener('click', ()=>{
+  loginRoot.classList.remove("hidden");
+  appRoot.classList.add("hidden");
+  state = { me:null, isAdmin:false };
+});
+
+// 模拟 fetch
+async function syncData(){
+  try{
+    syncStatus.textContent = "🟡 正在同步...";
+    const r = await fetch("/data");
+    const j = await r.json();
+    document.getElementById('newsList').innerHTML = j.news.map(n=>`
+      <div class='mb-2 p-2 bg-gray-800 rounded'>
+        <div>${n.text}</div>
+        ${n.file ? `<img src='${n.file}' class='mt-1 rounded cursor-pointer' onclick='showModal("img","${n.file}")'/>`: ""}
+        ${state.isAdmin?`<button onclick='deleteItem("news","${n.id}")' class='text-red-400 text-sm'>删除</button>`:""}
+      </div>`).join("");
+    document.getElementById('mediaGrid').innerHTML = j.media.map(m=>`
+      ${m.type.startsWith("video")?
+        `<video src='${m.file}' controls class='rounded cursor-pointer' onclick='showModal("video","${m.file}")'></video>`:
+        `<img src='${m.file}' class='rounded cursor-pointer' onclick='showModal("img","${m.file}")'/>`}
+      ${state.isAdmin?`<button onclick='deleteItem("media","${m.id}")' class='text-red-400 text-sm'>删除</button>`:""}
+    `).join("");
+    document.getElementById('wishList').innerHTML = j.wishes.map(w=>`
+      <div class='mb-2 p-2 bg-gray-800 rounded'>
+        <div>${w.text}</div>
+        <div class='flex gap-2 text-sm text-gray-400'>
+          <button onclick='likeWish("${w.id}")'>👍 ${w.likes||0}</button>
+          ${state.isAdmin?`<button onclick='deleteItem("wish","${w.id}")' class='text-red-400'>删除</button>`:""}
+        </div>
+      </div>`).join("");
+    onlineUsers.textContent = "在线用户：" + (j.online||0);
+    syncStatus.textContent = "🟢 已同步";
+  }catch(e){
+    syncStatus.textContent = "🔴 同步失败";
+  }
+  setTimeout(syncData,3000);
+}
+
+// 上传新闻
+document.getElementById('btnPostNews').onclick=async()=>{
+  const text=document.getElementById('newsText').value;
+  const file=document.getElementById('newsFile').files[0];
+  let fileUrl="";
+  if(file){
+    const form=new FormData(); form.append("file",file);
+    const res=await fetch("/upload",{method:"POST",body:form});
+    const j=await res.json(); fileUrl=j.file;
+  }
+  await fetch("/news",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:Date.now(),text,file:fileUrl,adminName:ADMIN_NAME,adminPass:ADMIN_PASS})});
+  document.getElementById('newsText').value="";
+  document.getElementById('newsFile').value="";
+};
+
+// 上传媒体
+document.getElementById('btnUploadMedia').onclick=async()=>{
+  const file=document.getElementById('mediaFile').files[0];
+  if(!file) return;
+  const form=new FormData(); form.append("file",file);
+  const xhr=new XMLHttpRequest();
+  xhr.upload.onprogress=(e)=>{ if(e.lengthComputable){ document.getElementById('uploadProgress').textContent=`${(e.loaded/e.total*100).toFixed(1)}%`; }};
+  xhr.onload=()=>{ document.getElementById('uploadProgress').textContent="完成"; };
+  xhr.open("POST","/upload"); xhr.send(form);
+};
+
+// 愿望
+document.getElementById('btnWish').onclick=async()=>{
+  const text=document.getElementById('wishInput').value;
+  if(!text) return;
+  await fetch("/wish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:Date.now(),text,user:state.me})});
+  document.getElementById('wishInput').value="";
+};
+
+// 删除
+async function deleteItem(type,id){
+  await fetch("/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type,id,adminName:ADMIN_NAME,adminPass:ADMIN_PASS})});
+}
+
+// 点赞
+async function likeWish(id){
+  await fetch("/like",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+}
+
+// 弹窗预览
+function showModal(type,src){
+  modal.classList.remove("hidden");
+  modalContent.innerHTML = type==="img"?`<img src='${src}'/>`:`<video src='${src}' controls autoplay></video>`;
+}
+modal.onclick=()=>{ modal.classList.add("hidden"); modalContent.innerHTML=""; }
+</script>
 </body>
 </html>
