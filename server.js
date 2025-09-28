@@ -2,21 +2,22 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 静态文件
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(cors()); // 允许跨域
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // 确保 uploads 目录存在
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer 存储配置（避免 EEXIST 错误）
+// Multer 存储配置
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
@@ -27,20 +28,20 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- 读取 data.json ---
+// 读取数据
 app.get('/data', (req, res) => {
   const dataPath = path.join(__dirname, 'data.json');
   fs.readFile(dataPath, 'utf-8', (err, data) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
     try {
-      res.json(JSON.parse(data));
+      res.json(JSON.parse(data || '{}'));
     } catch (e) {
       res.status(500).json({ error: '解析 JSON 失败' });
     }
   });
 });
 
-// --- 发布新闻 ---
+// 发布新闻
 app.post('/news', (req, res) => {
   const { title, desc, link } = req.body;
   const dataPath = path.join(__dirname, 'data.json');
@@ -53,8 +54,7 @@ app.post('/news', (req, res) => {
       title,
       desc,
       link,
-      date: new Date().toISOString().split('T')[0],
-      views: 0
+      date: new Date().toISOString().split('T')[0]
     });
 
     fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
@@ -64,10 +64,11 @@ app.post('/news', (req, res) => {
   });
 });
 
-// --- 上传媒体（图片/视频） ---
+// 上传媒体
 app.post('/upload', upload.single('file'), (req, res) => {
   const type = req.body.type || 'image';
   const dataPath = path.join(__dirname, 'data.json');
+
   fs.readFile(dataPath, 'utf-8', (err, data) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
 
@@ -76,8 +77,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
       id: Date.now(),
       file: '/uploads/' + req.file.filename,
       type,
-      date: new Date().toISOString().split('T')[0],
-      views: 0
+      date: new Date().toISOString().split('T')[0]
     });
 
     fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
@@ -87,7 +87,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
   });
 });
 
-// --- 添加愿望 ---
+// 添加愿望
 app.post('/wish', (req, res) => {
   const { text } = req.body;
   const dataPath = path.join(__dirname, 'data.json');
@@ -95,11 +95,11 @@ app.post('/wish', (req, res) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
 
     let json = JSON.parse(data);
-    json.wish.unshift({
+    json.wishes.unshift({
       id: Date.now(),
       text,
-      date: new Date().toISOString().split('T')[0],
-      likes: 0
+      likes: 0,
+      date: new Date().toISOString().split('T')[0]
     });
 
     fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
@@ -109,15 +109,16 @@ app.post('/wish', (req, res) => {
   });
 });
 
-// --- 删除新闻 ---
-app.delete('/news/:id', (req, res) => {
-  const id = parseInt(req.params.id);
+// 点赞愿望
+app.post('/wish/like', (req, res) => {
+  const { id } = req.body;
   const dataPath = path.join(__dirname, 'data.json');
   fs.readFile(dataPath, 'utf-8', (err, data) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
 
     let json = JSON.parse(data);
-    json.news = json.news.filter(n => n.id !== id);
+    let wish = json.wishes.find(w => w.id === id);
+    if (wish) wish.likes++;
 
     fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
       if (err) return res.status(500).json({ error: '写入失败' });
@@ -126,41 +127,9 @@ app.delete('/news/:id', (req, res) => {
   });
 });
 
-// --- 删除媒体 ---
-app.delete('/media/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const dataPath = path.join(__dirname, 'data.json');
-  fs.readFile(dataPath, 'utf-8', (err, data) => {
-    if (err) return res.status(500).json({ error: '读取数据失败' });
+// 静态文件服务
+app.use('/uploads', express.static(uploadDir));
 
-    let json = JSON.parse(data);
-    json.media = json.media.filter(m => m.id !== id);
-
-    fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
-      if (err) return res.status(500).json({ error: '写入失败' });
-      res.json({ success: true });
-    });
-  });
-});
-
-// --- 删除愿望 ---
-app.delete('/wish/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const dataPath = path.join(__dirname, 'data.json');
-  fs.readFile(dataPath, 'utf-8', (err, data) => {
-    if (err) return res.status(500).json({ error: '读取数据失败' });
-
-    let json = JSON.parse(data);
-    json.wish = json.wish.filter(w => w.id !== id);
-
-    fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
-      if (err) return res.status(500).json({ error: '写入失败' });
-      res.json({ success: true });
-    });
-  });
-});
-
-// --- 启动服务 ---
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
