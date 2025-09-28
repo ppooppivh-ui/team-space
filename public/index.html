@@ -3,48 +3,83 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>团队空间 - 登录</title>
+  <title>团队空间</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <style>
-    body { background: linear-gradient(135deg,#6e00ff,#60f); min-height:100vh; }
-    .glass { background:rgba(255,255,255,0.92); backdrop-filter:blur(8px); box-shadow:0 10px 30px rgba(0,0,0,.1); border-radius:8px; }
+    body { background: #f0f2f5; }
+    .card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
     .hidden { display:none; }
   </style>
 </head>
-<body class="flex items-center justify-center p-6">
+<body class="p-4">
 
-<div id="loginPage" class="glass w-full max-w-sm p-6">
+<!-- 登录页 -->
+<div id="loginPage" class="max-w-sm mx-auto card mt-20">
   <h2 class="text-xl font-bold mb-4 text-center">登录团队空间</h2>
-  <label class="block mb-2">名字</label>
-  <input id="usernameInput" type="text" class="w-full border rounded p-2 mb-3" placeholder="请输入名字"/>
-  <div id="adminPassDiv" class="hidden">
-    <label class="block mb-2">管理员密码</label>
-    <input id="adminPassInput" type="password" class="w-full border rounded p-2" placeholder="请输入密码"/>
-  </div>
+  <input id="username" type="text" placeholder="请输入名字" class="border p-2 w-full mb-3 rounded"/>
+  <input id="adminPass" type="password" placeholder="管理员密码(可选)" class="border p-2 w-full mb-3 rounded"/>
   <button id="loginBtn" class="w-full bg-blue-600 text-white p-2 rounded">进入</button>
 </div>
 
-<div id="mainPage" class="hidden w-full">
-  <header class="flex justify-between items-center p-4 bg-white shadow">
+<!-- 主页面 -->
+<div id="mainPage" class="hidden">
+  <header class="flex justify-between items-center p-4 bg-white shadow mb-4">
     <h1 class="text-xl font-bold">团队新闻空间</h1>
     <button id="logoutBtn" class="px-3 py-1 bg-gray-200 rounded">退出</button>
   </header>
-  <main class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="contentArea">
+
+  <main class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="contentArea">
     <!-- 内容动态加载 -->
   </main>
+
+  <div class="fixed bottom-4 right-4">
+    <button id="newNews" class="bg-green-600 text-white px-4 py-2 rounded">发布新闻</button>
+    <button id="newWish" class="bg-purple-600 text-white px-4 py-2 rounded">许愿</button>
+  </div>
 </div>
 
 <script>
-  const loginBtn = document.getElementById('loginBtn');
   const loginPage = document.getElementById('loginPage');
   const mainPage = document.getElementById('mainPage');
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const contentArea = document.getElementById('contentArea');
 
   loginBtn.addEventListener('click', () => {
-    const username = document.getElementById('usernameInput').value.trim();
+    const username = document.getElementById('username').value.trim();
     if (!username) { alert('请输入名字'); return; }
     loginPage.classList.add('hidden');
     mainPage.classList.remove('hidden');
+    loadData();
   });
+
+  logoutBtn.addEventListener('click', () => {
+    mainPage.classList.add('hidden');
+    loginPage.classList.remove('hidden');
+  });
+
+  async function loadData() {
+    const res = await fetch('/data');
+    const data = await res.json();
+    render(data);
+  }
+
+  function render(data) {
+    contentArea.innerHTML = '';
+    data.news.forEach(n => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `<h3 class="font-bold mb-2">新闻</h3><p>${n.text}</p>`;
+      contentArea.appendChild(div);
+    });
+    data.wishes.forEach(w => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `<h3 class="font-bold mb-2">愿望</h3><p>${w.text}</p>`;
+      contentArea.appendChild(div);
+    });
+  }
 </script>
+
 </body>
 </html>
