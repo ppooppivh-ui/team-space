@@ -1,1 +1,8 @@
-{ "news": [], "wishes": [] }
+{
+  "news": [],
+  "wishes": [],
+  "media": [],
+  "likes": {},
+  "comments": {},
+  "presence": {}
+}
