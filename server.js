@@ -1,5 +1,5 @@
 
-// server.js - Team Space backend (final full version)
+// server.js - Final version with admin auth
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
@@ -36,11 +36,11 @@ const storage = multer.diskStorage({
     cb(null, name);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
 // 上传接口
 app.post('/upload', upload.single('file'), (req, res) => {
-  res.json({ file: '/uploads/' + req.file.filename });
+  res.json({ file: '/uploads/' + req.file.filename, size: req.file.size });
 });
 
 // 数据文件
@@ -74,9 +74,12 @@ app.post('/wish', (req, res) => {
   res.json({ success: true });
 });
 
-// 删除新闻或愿望
+// 删除新闻或愿望 (管理员认证)
 app.post('/delete', (req, res) => {
-  const { type, id } = req.body;
+  const { type, id, adminName, adminPass } = req.body;
+  if (adminName !== "guangminghui" || adminPass !== "guangminghui888") {
+    return res.status(403).json({ success: false, message: "无效的管理员凭证" });
+  }
   const data = readData();
   if (type === 'news') {
     data.news = data.news.filter(item => item.id !== id);
