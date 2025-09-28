@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -9,16 +10,28 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// 上传配置
-const upload = multer({ dest: path.join(__dirname, 'uploads/') });
+// 确保 uploads 目录存在
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
 
-// 🔹 读取 data.json
+// Multer 存储配置（避免 EEXIST 错误）
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage });
+
+// --- 读取 data.json ---
 app.get('/data', (req, res) => {
   const dataPath = path.join(__dirname, 'data.json');
   fs.readFile(dataPath, 'utf-8', (err, data) => {
-    if (err) {
-      return res.status(500).json({ error: '读取数据失败' });
-    }
+    if (err) return res.status(500).json({ error: '读取数据失败' });
     try {
       res.json(JSON.parse(data));
     } catch (e) {
@@ -27,7 +40,7 @@ app.get('/data', (req, res) => {
   });
 });
 
-// 🔹 发布新闻
+// --- 发布新闻 ---
 app.post('/news', (req, res) => {
   const { title, desc, link } = req.body;
   const dataPath = path.join(__dirname, 'data.json');
@@ -51,11 +64,10 @@ app.post('/news', (req, res) => {
   });
 });
 
-// 🔹 上传媒体（图片/视频）
+// --- 上传媒体（图片/视频） ---
 app.post('/upload', upload.single('file'), (req, res) => {
-  const type = req.body.type || 'image'; // 默认为图片
+  const type = req.body.type || 'image';
   const dataPath = path.join(__dirname, 'data.json');
-
   fs.readFile(dataPath, 'utf-8', (err, data) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
 
@@ -75,7 +87,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
   });
 });
 
-// 🔹 许愿池
+// --- 添加愿望 ---
 app.post('/wish', (req, res) => {
   const { text } = req.body;
   const dataPath = path.join(__dirname, 'data.json');
@@ -83,11 +95,11 @@ app.post('/wish', (req, res) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
 
     let json = JSON.parse(data);
-    json.wishes.unshift({
+    json.wish.unshift({
       id: Date.now(),
       text,
-      likes: 0,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      likes: 0
     });
 
     fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
@@ -97,18 +109,15 @@ app.post('/wish', (req, res) => {
   });
 });
 
-// 🔹 点赞许愿池
-app.post('/wish/like', (req, res) => {
-  const { id } = req.body;
+// --- 删除新闻 ---
+app.delete('/news/:id', (req, res) => {
+  const id = parseInt(req.params.id);
   const dataPath = path.join(__dirname, 'data.json');
   fs.readFile(dataPath, 'utf-8', (err, data) => {
     if (err) return res.status(500).json({ error: '读取数据失败' });
 
     let json = JSON.parse(data);
-    let wish = json.wishes.find(w => w.id === id);
-    if (wish) {
-      wish.likes++;
-    }
+    json.news = json.news.filter(n => n.id !== id);
 
     fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
       if (err) return res.status(500).json({ error: '写入失败' });
@@ -117,9 +126,41 @@ app.post('/wish/like', (req, res) => {
   });
 });
 
-// 🔹 静态文件服务（uploads 文件夹）
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// --- 删除媒体 ---
+app.delete('/media/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const dataPath = path.join(__dirname, 'data.json');
+  fs.readFile(dataPath, 'utf-8', (err, data) => {
+    if (err) return res.status(500).json({ error: '读取数据失败' });
 
+    let json = JSON.parse(data);
+    json.media = json.media.filter(m => m.id !== id);
+
+    fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
+      if (err) return res.status(500).json({ error: '写入失败' });
+      res.json({ success: true });
+    });
+  });
+});
+
+// --- 删除愿望 ---
+app.delete('/wish/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const dataPath = path.join(__dirname, 'data.json');
+  fs.readFile(dataPath, 'utf-8', (err, data) => {
+    if (err) return res.status(500).json({ error: '读取数据失败' });
+
+    let json = JSON.parse(data);
+    json.wish = json.wish.filter(w => w.id !== id);
+
+    fs.writeFile(dataPath, JSON.stringify(json, null, 2), err => {
+      if (err) return res.status(500).json({ error: '写入失败' });
+      res.json({ success: true });
+    });
+  });
+});
+
+// --- 启动服务 ---
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
