@@ -1,124 +1,44 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>团队空间</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>团队空间 - 实时新闻 · 媒体 · 愿望池</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<style>
+  body { background: linear-gradient(135deg,#0f172a 0%,#111827 100%); font-family: Inter, "Helvetica Neue", Arial, sans-serif; color:#e6eef8; }
+  .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(8px); border-radius:12px; box-shadow: 0 6px 20px rgba(2,6,23,0.6); }
+  .btn { transition: all .18s ease; }
+  .btn:hover { transform: translateY(-2px); }
+  .three-cols { display:grid; grid-template-columns: 1fr; gap:12px; }
+  @media(min-width:900px){ .three-cols { grid-template-columns: 1fr 1fr 1fr; } }
+</style>
 </head>
-<body class="bg-gray-900 text-white">
-  <!-- 登录页 -->
-  <div id="loginPage" class="flex h-screen items-center justify-center">
-    <div class="bg-gray-800 p-6 rounded-xl w-80">
-      <h2 class="text-xl mb-4 text-center">登录团队空间</h2>
-      <input id="username" class="w-full mb-3 p-2 rounded text-black" placeholder="请输入名字"/>
-      <div id="adminPassDiv" class="hidden">
-        <input id="adminPass" type="password" class="w-full mb-3 p-2 rounded text-black" placeholder="管理员密码"/>
-      </div>
-      <button id="loginBtn" class="w-full bg-blue-600 py-2 rounded">进入</button>
+<body class="min-h-screen">
+<div id="loginRoot" class="min-h-screen flex items-center justify-center p-6">
+  <div class="w-full max-w-md glass p-6">
+    <h1 class="text-2xl font-bold mb-3 text-center">欢迎使用 · 团队空间</h1>
+    <p class="text-sm text-gray-400 mb-6 text-center">请输入中文姓名（至少2个字）进入</p>
+    <input id="inputName" class="w-full p-3 rounded bg-gray-900 border border-gray-800 placeholder-gray-500" placeholder="例如：张三" />
+    <div id="adminPassWrapper" class="mt-3 hidden">
+      <input id="inputAdminPass" type="password" class="w-full p-3 rounded bg-gray-900 border border-gray-800" placeholder="管理员密码" />
+    </div>
+    <div class="mt-5 flex items-center justify-between">
+      <button id="btnLogin" class="btn px-4 py-2 rounded bg-gradient-to-r from-green-500 to-teal-400 font-medium">进入</button>
     </div>
   </div>
-
-  <!-- 主页面 -->
-  <div id="mainPage" class="hidden p-4">
-    <header class="flex justify-between mb-4">
-      <h1 class="text-lg font-bold">团队新闻空间</h1>
-      <button id="logoutBtn" class="bg-gray-600 px-2 py-1 rounded">退出</button>
-    </header>
-    <main id="contentArea" class="grid gap-4"></main>
-    <div class="fixed bottom-4 right-4 space-x-2">
-      <button id="newNews" class="hidden bg-green-600 px-3 py-2 rounded">发布新闻</button>
-      <button id="newWish" class="bg-purple-600 px-3 py-2 rounded">许愿</button>
-      <input type="file" id="fileInput" multiple class="hidden"/>
-      <button id="uploadBtn" class="bg-blue-600 px-3 py-2 rounded">上传</button>
-    </div>
+</div>
+<div id="appRoot" class="hidden min-h-screen p-4">
+  <header class="flex items-center justify-between mb-4">
+    <div class="text-2xl font-bold">团队新闻空间</div>
+    <button id="btnLogout" class="btn px-3 py-1 bg-gray-800 rounded">退出</button>
+  </header>
+  <div class="three-cols mb-6" id="threeCols">
+    <section id="colNews"><h2 class="text-lg mb-3">云善绘新闻</h2><div id="newsList"></div></section>
+    <section id="colMedia"><h2 class="text-lg mb-3">视频与照片</h2><div id="mediaGrid" class="grid grid-cols-2 gap-2"></div></section>
+    <section id="colWish"><h2 class="text-lg mb-3">愿望池</h2><div id="wishList"></div></section>
   </div>
-
-  <div id="status" class="fixed bottom-2 left-2 text-sm">🟡 正在同步...</div>
-
-  <script>
-    let isAdmin = false, currentUser = "";
-    const loginPage=document.getElementById('loginPage');
-    const mainPage=document.getElementById('mainPage');
-    const loginBtn=document.getElementById('loginBtn');
-    const usernameEl=document.getElementById('username');
-    const adminPassDiv=document.getElementById('adminPassDiv');
-    const adminPassEl=document.getElementById('adminPass');
-    const newNewsBtn=document.getElementById('newNews');
-    const contentArea=document.getElementById('contentArea');
-    const statusEl=document.getElementById('status');
-    const uploadBtn=document.getElementById('uploadBtn');
-    const fileInput=document.getElementById('fileInput');
-
-    usernameEl.addEventListener('input',()=>{
-      if(usernameEl.value.trim()==="guangminghui") adminPassDiv.classList.remove('hidden');
-      else adminPassDiv.classList.add('hidden');
-    });
-
-    loginBtn.onclick=()=>{
-      const name=usernameEl.value.trim();
-      if(!name) return alert("请输入名字");
-      if(name==="guangminghui"){
-        if(adminPassEl.value!=="guangminghui888"){ alert("管理员密码错误"); return; }
-        isAdmin=true; newNewsBtn.classList.remove('hidden');
-      }
-      currentUser=name; loginPage.classList.add('hidden'); mainPage.classList.remove('hidden'); syncData();
-    };
-
-    document.getElementById('logoutBtn').onclick=()=>{ mainPage.classList.add('hidden'); loginPage.classList.remove('hidden'); };
-
-    async function syncData(){
-      try{
-        statusEl.textContent="🟡 正在同步...";
-        const res=await fetch('/data'); const data=await res.json();
-        render(data); statusEl.textContent="🟢 已同步";
-      }catch{ statusEl.textContent="🔴 同步失败"; }
-      setTimeout(syncData,3000);
-    }
-
-    function render(data){
-      contentArea.innerHTML="";
-      [...data.news,...data.wishes].forEach(item=>{
-        const div=document.createElement('div');
-        div.className="bg-gray-800 p-3 rounded";
-        div.innerHTML=`<h3 class="font-bold">${item.type}</h3><p>${item.text||""}</p>`;
-        if(isAdmin){
-          const del=document.createElement('button');
-          del.textContent="删除";
-          del.className="bg-red-600 px-2 py-1 mt-2 rounded";
-          del.onclick=async()=>{
-            await fetch('/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:item.type,id:item.id,adminName:'guangminghui',adminPass:'guangminghui888'})});
-          };
-          div.appendChild(del);
-        }
-        contentArea.appendChild(div);
-      });
-    }
-
-    newNewsBtn.onclick=async()=>{
-      const text=prompt("请输入新闻内容：");
-      if(!text) return;
-      await fetch('/news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'news',text,adminName:'guangminghui',adminPass:'guangminghui888'})});
-      alert("新闻已发布");
-    };
-
-    document.getElementById('newWish').onclick=async()=>{
-      const text=prompt("请输入愿望：");
-      if(!text) return;
-      await fetch('/wish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'wish',text,user:currentUser})});
-      alert("愿望已提交");
-    };
-
-    uploadBtn.onclick=()=>fileInput.click();
-    fileInput.onchange=async()=>{
-      const file=fileInput.files[0];
-      if(!file) return;
-      const formData=new FormData();
-      formData.append('file',file);
-      const res=await fetch('/upload',{method:'POST',body:formData});
-      const result=await res.json();
-      alert("文件上传完成: "+result.file);
-    };
-  </script>
+</div>
+<script>console.log("前端已加载")</script>
 </body>
 </html>
