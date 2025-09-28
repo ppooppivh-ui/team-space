@@ -6,20 +6,18 @@ const multer = require('multer');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 保证 uploads 目录存在
+// 确保 uploads 目录存在
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
+  fs.mkdirSync(uploadDir); // 只在不存在时创建
 }
 
 // 静态文件目录
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(uploadDir));
 app.use(express.json());
 
-// 上传设置
+// 上传配置
 const upload = multer({ dest: uploadDir });
-
 // 数据文件路径
 const dataPath = path.join(__dirname, 'data.json');
 
