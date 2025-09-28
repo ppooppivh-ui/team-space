@@ -3,86 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>团队空间 - 登录</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: "Helvetica Neue", Arial, sans-serif;
-      overflow: hidden;
-    }
-    #loginPage {
-      background: rgba(255,255,255,0.08);
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 4px 30px rgba(0,0,0,0.6);
-      backdrop-filter: blur(10px);
-      width: 90%;
-      max-width: 360px;
-      text-align: center;
-      color: white;
-    }
-    #usernameInput {
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 8px;
-      margin: 10px 0;
-      font-size: 16px;
-      outline: none;
-    }
-    #loginBtn {
-      width: 100%;
-      padding: 12px;
-      margin-top: 12px;
-      background: #4e73df;
-      border: none;
-      border-radius: 8px;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    #loginBtn:hover {
-      background: #3756c3;
-    }
-    @media (max-width: 480px) {
-      #loginPage {
-        padding: 20px;
-      }
-      #usernameInput, #loginBtn {
-        font-size: 14px;
-        padding: 10px;
-      }
-    }
-  </style>
+  <title>团队空间</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-  <div id="loginPage">
-    <h2>登录团队空间</h2>
-    <input id="usernameInput" type="text" placeholder="请输入名字" />
-    <button id="loginBtn">进入</button>
+<body class="bg-gray-900 text-white">
+  <div id="loginPage" class="flex h-screen items-center justify-center">
+    <div class="bg-gray-800 p-6 rounded-xl w-80">
+      <h2 class="text-xl mb-4 text-center">登录团队空间</h2>
+      <input id="username" class="w-full mb-3 p-2 rounded text-black" placeholder="请输入名字"/>
+      <div id="adminPassDiv" class="hidden">
+        <input id="adminPass" type="password" class="w-full mb-3 p-2 rounded text-black" placeholder="管理员密码"/>
+      </div>
+      <button id="loginBtn" class="w-full bg-blue-600 py-2 rounded">进入</button>
+    </div>
   </div>
+
+  <div id="mainPage" class="hidden p-4">
+    <header class="flex justify-between mb-4">
+      <h1 class="text-lg font-bold">团队新闻空间</h1>
+      <button id="logoutBtn" class="bg-gray-600 px-2 py-1 rounded">退出</button>
+    </header>
+    <main id="contentArea" class="grid gap-4"></main>
+    <div class="fixed bottom-4 right-4 space-x-2">
+      <button id="newNews" class="hidden bg-green-600 px-3 py-2 rounded">发布新闻</button>
+      <button id="newWish" class="bg-purple-600 px-3 py-2 rounded">许愿</button>
+      <input type="file" id="fileInput" multiple class="hidden"/>
+      <button id="uploadBtn" class="bg-blue-600 px-3 py-2 rounded">上传</button>
+    </div>
+  </div>
+
+  <div id="status" class="fixed bottom-2 left-2 text-sm">🟡 正在同步...</div>
+
   <script>
-    document.getElementById('loginBtn').addEventListener('click', () => {
-      const name = document.getElementById('usernameInput').value.trim();
-      if (!name) return alert("请输入名字");
-      if (name === "guangminghui") {
-        const pass = prompt("请输入管理员密码:");
-        if (pass === "guangminghui888") {
-          alert("管理员登录成功!");
-        } else {
-          alert("管理员密码错误");
-          return;
-        }
-      }
-      alert("欢迎进入: " + name);
+    let isAdmin = false, currentUser = "";
+    const loginPage=document.getElementById('loginPage');
+    const mainPage=document.getElementById('mainPage');
+    const loginBtn=document.getElementById('loginBtn');
+    const usernameEl=document.getElementById('username');
+    const adminPassDiv=document.getElementById('adminPassDiv');
+    const adminPassEl=document.getElementById('adminPass');
+    const newNewsBtn=document.getElementById('newNews');
+    const contentArea=document.getElementById('contentArea');
+    const statusEl=document.getElementById('status');
+
+    usernameEl.addEventListener('input',()=>{
+      if(usernameEl.value.trim()==="guangminghui") adminPassDiv.classList.remove('hidden');
+      else adminPassDiv.classList.add('hidden');
     });
+
+    loginBtn.onclick=()=>{
+      const name=usernameEl.value.trim();
+      if(!name) return alert("请输入名字");
+      if(name==="guangminghui"){
+        if(adminPassEl.value!=="guangminghui888"){ alert("管理员密码错误"); return; }
+        isAdmin=true; newNewsBtn.classList.remove('hidden');
+      }
+      currentUser=name; loginPage.classList.add('hidden'); mainPage.classList.remove('hidden'); syncData();
+    };
+
+    document.getElementById('logoutBtn').onclick=()=>{ mainPage.classList.add('hidden'); loginPage.classList.remove('hidden'); };
+
+    async function syncData(){
+      try{
+        statusEl.textContent="🟡 正在同步...";
+        const res=await fetch('/data'); const data=await res.json();
+        render(data); statusEl.textContent="🟢 已同步";
+      }catch{ statusEl.textContent="🔴 同步失败"; }
+      setTimeout(syncData,3000);
+    }
+
+    function render(data){
+      contentArea.innerHTML="";
+      [...data.news,...data.wishes].forEach(item=>{
+        const div=document.createElement('div');
+        div.className="bg-gray-800 p-3 rounded";
+        div.innerHTML=`<h3 class="font-bold">${item.type}</h3><p>${item.text||""}</p>`;
+        if(isAdmin){
+          const del=document.createElement('button');
+          del.textContent="删除";
+          del.className="bg-red-600 px-2 py-1 mt-2 rounded";
+          del.onclick=async()=>{
+            await fetch('/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:item.type,id:item.id,adminName:'guangminghui',adminPass:'guangminghui888'})});
+          };
+          div.appendChild(del);
+        }
+        contentArea.appendChild(div);
+      });
+    }
   </script>
 </body>
 </html>
