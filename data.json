@@ -1,8 +1,14 @@
 {
-  "news": [],
-  "wishes": [],
+  "news": [
+    {
+      "id": 1,
+      "title": "团队月度会议总结",
+      "desc": "本月团队工作总结及下月计划",
+      "img": "",
+      "date": "2024-01-15",
+      "views": 120
+    }
+  ],
   "media": [],
-  "likes": {},
-  "comments": {},
-  "presence": {}
+  "wishes": []
 }
