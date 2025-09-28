@@ -1,1 +1,69 @@
-const express=require('express');const multer=require('multer');const fs=require('fs');const path=require('path');const app=express();const PORT=process.env.PORT||10000;const DATA_FILE=path.join(__dirname,'data.json');const UPLOAD_DIR=path.join(__dirname,'uploads');if(!fs.existsSync(UPLOAD_DIR))fs.mkdirSync(UPLOAD_DIR,{recursive:true});app.use(express.json({limit:'500mb'}));app.use(express.urlencoded({extended:true,limit:'500mb'}));app.use('/uploads',express.static(UPLOAD_DIR));app.use(express.static(path.join(__dirname,'public')));const storage=multer.diskStorage({destination:function(req,file,cb){cb(null,UPLOAD_DIR);},filename:function(req,file,cb){cb(null,Date.now()+'-'+file.originalname.replace(/\s+/g,'_'));}});const upload=multer({storage:storage,limits:{fileSize:300*1024*1024}});function readData(){if(!fs.existsSync(DATA_FILE))return {news:[],media:[],wishes:[]};try{return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')||'{}');}catch(e){console.error(e);return {news:[],media:[],wishes:[]};}}function writeData(d){fs.writeFileSync(DATA_FILE,JSON.stringify(d,null,2),'utf8');}app.get('/data',(req,res)=>res.json(readData()));app.post('/news',(req,res)=>{const d=readData();const{id}=req.body;const title=req.body.title;const desc=req.body.desc;const link=req.body.link;const nid=Date.now();d.news.unshift({id:nid,title,desc,img:'',date:new Date().toISOString().split('T')[0],views:0,link:link||''});writeData(d);res.json({success:true,id:nid});});app.post('/wish',(req,res)=>{const d=readData();const id=Date.now();d.wishes.unshift({id,text:req.body.text,author:req.body.author,likes:0,date:new Date().toISOString().split('T')[0]});writeData(d);res.json({success:true,id});});app.post('/like-wish',(req,res)=>{const d=readData();const w=d.wishes.find(x=>x.id==req.body.id);if(w){w.likes=(w.likes||0)+1;writeData(d);res.json({success:true,likes:w.likes});}else res.json({success:false});});app.post('/delete',(req,res)=>{const{type,id}=req.body;const d=readData();if(type==='news')d.news=d.news.filter(x=>x.id!=id);if(type==='wish')d.wishes=d.wishes.filter(x=>x.id!=id);if(type==='media')d.media=d.media.filter(x=>x.id!=id);writeData(d);res.json({success:true});});app.post('/upload',upload.single('file'),(req,res)=>{if(!req.file) return res.status(400).json({success:false});const d=readData();const type=req.body.type==='video'?'video':'image';const title=req.body.title||req.file.originalname;const id=Date.now();const rel=path.join('uploads',req.file.filename).replace(/\\/g,'/');d.media.unshift({id,type,file:rel,title,date:new Date().toISOString().split('T')[0],views:0});writeData(d);res.json({success:true,file:rel});});app.post('/view',(req,res)=>{const{type,id}=req.body;const d=readData();if(type==='news'){const item=d.news.find(x=>x.id==id);if(item){item.views=(item.views||0)+1;writeData(d);res.json({success:true,views:item.views});return;}}if(type==='media'){const item=d.media.find(x=>x.id==id);if(item){item.views=(item.views||0)+1;writeData(d);res.json({success:true,views:item.views});return;}}res.json({success:false});});app.get('/',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));app.listen(PORT,()=>console.log('listening',PORT));
+// server.js (final backend with admin)
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
+
+app.post('/upload', upload.single('file'), (req, res) => {
+  res.json({ file: '/uploads/' + req.file.filename });
+});
+
+const DATA_FILE = path.join(__dirname, 'data.json');
+function readData() {
+  if (!fs.existsSync(DATA_FILE)) return { news: [], wishes: [] };
+  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+}
+function writeData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+app.get('/data', (req, res) => res.json(readData()));
+
+app.post('/news', (req, res) => {
+  const { adminName, adminPass } = req.body;
+  if (adminName !== 'guangminghui' || adminPass !== 'guangminghui888') {
+    return res.status(403).json({ success: false });
+  }
+  const data = readData();
+  data.news.push({ ...req.body, id: Date.now(), type: 'news' });
+  writeData(data);
+  res.json({ success: true });
+});
+
+app.post('/wish', (req, res) => {
+  const data = readData();
+  data.wishes.push({ ...req.body, id: Date.now(), type: 'wish' });
+  writeData(data);
+  res.json({ success: true });
+});
+
+app.post('/delete', (req, res) => {
+  const { type, id, adminName, adminPass } = req.body;
+  if (adminName !== 'guangminghui' || adminPass !== 'guangminghui888') {
+    return res.status(403).json({ success: false });
+  }
+  const data = readData();
+  if (type === 'news') data.news = data.news.filter(n => n.id !== id);
+  if (type === 'wish') data.wishes = data.wishes.filter(w => w.id !== id);
+  writeData(data);
+  res.json({ success: true });
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log("Server running on port " + PORT));
