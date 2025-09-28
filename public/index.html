@@ -1,1 +1,164 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>团队新闻空间</title></head><body><h3>示例前端（已内置完整功能）</h3><p>请将 public/index.html 下载到本地直接替换到服务器的 public/ 文件夹。</p></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>团队新闻空间</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: linear-gradient(135deg,#eef2ff,#f8fafc); font-family: Arial, sans-serif; }
+    .login-card { max-width:400px; margin:10% auto; padding:30px; border-radius:16px; background:#fff;
+                  box-shadow:0 8px 24px rgba(0,0,0,0.1); }
+    .tabs { display:flex; margin-bottom:1rem; gap:.5rem; }
+    .tab { flex:1; padding:.75rem; border-radius:8px; text-align:center; cursor:pointer;
+           background:#f1f5f9; font-weight:500; }
+    .tab.active { background:#6366f1; color:#fff; }
+    .card-item { border-radius:12px; padding:1rem; margin-bottom:1rem; background:#fff;
+                 box-shadow:0 4px 12px rgba(0,0,0,0.05); }
+    .media-card img,.media-card video{max-width:100%;border-radius:8px;cursor:pointer}
+    .footer-sync { position:fixed; left:10px; bottom:10px; background:#fff; padding:6px 10px;
+                   border-radius:8px; font-size:.85rem; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <div id="loginView" class="login-card">
+    <h4 class="mb-3 text-center">登录团队空间</h4>
+    <input id="loginName" class="form-control mb-3" placeholder="请输入姓名 (中文≥2个字)" />
+    <div id="adminPassWrap" class="hidden">
+      <input id="loginPass" type="password" class="form-control mb-3" placeholder="请输入管理员密码" />
+    </div>
+    <button id="btnLogin" class="btn btn-primary w-100">进入</button>
+  </div>
+
+  <div id="appView" class="container py-3 hidden">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3>团队新闻空间</h3>
+      <div>
+        <span id="welcomeUser" class="me-2 text-muted"></span>
+        <span id="adminBadge" class="badge bg-danger hidden">管理员</span>
+        <button id="btnLogout" class="btn btn-sm btn-outline-secondary ms-2">退出</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="news">新闻资讯</div>
+      <div class="tab" data-tab="media">图片/视频</div>
+      <div class="tab" data-tab="wishes">愿望池</div>
+      <div id="tabAdmin" class="tab hidden" data-tab="admin">后台管理</div>
+    </div>
+
+    <div id="newsView">
+      <div id="newsList"></div>
+    </div>
+
+    <div id="mediaView" class="hidden">
+      <div id="mediaList"></div>
+    </div>
+
+    <div id="wishesView" class="hidden">
+      <div class="card-item">
+        <div class="d-flex">
+          <input id="wishInput" class="form-control me-2" placeholder="写下你的愿望..." />
+          <button id="btnWish" class="btn btn-success">发表</button>
+        </div>
+      </div>
+      <div id="wishList"></div>
+    </div>
+
+    <div id="adminView" class="hidden">
+      <div class="card-item">
+        <h5>添加新闻</h5>
+        <input id="newsTitle" class="form-control mb-2" placeholder="标题" />
+        <textarea id="newsDesc" class="form-control mb-2" placeholder="描述"></textarea>
+        <input id="newsLink" class="form-control mb-2" placeholder="链接 (可选)" />
+        <button id="btnAddNews" class="btn btn-primary">发布新闻</button>
+      </div>
+      <div class="card-item">
+        <h5>上传媒体</h5>
+        <input type="file" id="mediaFile" />
+        <div id="progressWrap" class="hidden mt-2">进度: <span id="progressPct">0%</span></div>
+        <div class="mt-2">
+          <label><input type="radio" name="mtype" value="image" checked/> 图片</label>
+          <label class="ms-2"><input type="radio" name="mtype" value="video"/> 视频</label>
+        </div>
+        <button id="btnUpload" class="btn btn-success mt-2">上传</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="previewModal" class="hidden position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-dark bg-opacity-75">
+    <div class="bg-white p-3 rounded" style="max-width:90%;max-height:90%;overflow:auto;">
+      <button id="btnClosePreview" class="btn btn-sm btn-outline-secondary mb-2">关闭</button>
+      <div id="previewBox"></div>
+    </div>
+  </div>
+
+  <div id="syncStatus" class="footer-sync">🟢 已同步</div>
+
+<script>
+const ADMIN_NAME="guangminghui";
+const ADMIN_PASS="guangminghui888";
+
+const loginView=document.getElementById('loginView');
+const appView=document.getElementById('appView');
+const loginName=document.getElementById('loginName');
+const loginPass=document.getElementById('loginPass');
+const adminPassWrap=document.getElementById('adminPassWrap');
+const btnLogin=document.getElementById('btnLogin');
+const btnLogout=document.getElementById('btnLogout');
+const welcomeUser=document.getElementById('welcomeUser');
+const adminBadge=document.getElementById('adminBadge');
+const tabAdmin=document.getElementById('tabAdmin');
+const tabs=document.querySelectorAll('.tab');
+const syncStatus=document.getElementById('syncStatus');
+
+let state={me:null,isAdmin:false,data:{news:[],media:[],wishes:[]}};
+let poll=null;
+
+loginName.addEventListener('input',()=>{
+  if(loginName.value.trim()===ADMIN_NAME){adminPassWrap.classList.remove('hidden');}
+  else{adminPassWrap.classList.add('hidden');loginPass.value='';}
+});
+
+btnLogin.addEventListener('click',()=>{
+  const name=loginName.value.trim();
+  if(!name){alert('请输入姓名');return;}
+  if(name===ADMIN_NAME){
+    if(loginPass.value!==ADMIN_PASS){alert('管理员密码错误');return;}
+    state.isAdmin=true;
+  }else{
+    if(!/^[\u4e00-\u9fa5]{2,}$/.test(name)){alert('请输入至少两个中文字符');return;}
+    state.isAdmin=false;
+  }
+  state.me=name;
+  welcomeUser.textContent="欢迎,"+(state.isAdmin?"管理员":name);
+  adminBadge.classList.toggle('hidden',!state.isAdmin);
+  tabAdmin.classList.toggle('hidden',!state.isAdmin);
+  loginView.classList.add('hidden');appView.classList.remove('hidden');
+  fetchData();startPoll();
+});
+
+btnLogout.addEventListener('click',()=>{state={me:null,isAdmin:false,data:{news:[],media:[],wishes:[]}};stopPoll();appView.classList.add('hidden');loginView.classList.remove('hidden');});
+
+tabs.forEach(t=>t.addEventListener('click',()=>{if(t.dataset.tab==='admin'&&!state.isAdmin){alert('仅管理员可访问');return;}tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');['news','media','wishes','admin'].forEach(v=>document.getElementById(v+'View').classList.toggle('hidden',v!==t.dataset.tab));}));
+
+async function fetchData(){try{syncStatus.textContent='🟡 正在同步...';const r=await fetch('/data');const j=await r.json();state.data=j;renderAll();syncStatus.textContent='🟢 已同步';}catch(e){syncStatus.textContent='🔴 同步失败';}}
+function startPoll(){if(poll)return;poll=setInterval(fetchData,3000);}function stopPoll(){if(poll)clearInterval(poll);poll=null;}
+
+function renderAll(){renderNews();renderMedia();renderWishes();}
+function renderNews(){document.getElementById('newsList').innerHTML=state.data.news.map(n=>`<div class="card-item"><b>${n.title}</b><p>${n.desc||''}</p><small>${n.date}</small><div class="mt-2"><button class="btn btn-sm btn-outline-primary" onclick="preview('${n.desc||''}')">查看</button>${state.isAdmin?` <button class="btn btn-sm btn-outline-danger" onclick="delItem('news',${n.id})">删除</button>`:''}</div></div>`).join('')||'<div class="card-item">暂无新闻</div>';}
+function renderMedia(){document.getElementById('mediaList').innerHTML=state.data.media.map(m=>`<div class="card-item media-card">${m.type==='video'?`<video src="${m.file}" controls onclick="preview('<video src=${m.file} controls style=\'max-width:100%\'></video>')"></video>`:`<img src="${m.file}" onclick="preview('<img src=${m.file} style=\'max-width:100%\'>')">`}<div class="mt-2 d-flex justify-content-between"><span>${m.title}</span>${state.isAdmin?`<button class="btn btn-sm btn-outline-danger" onclick="delItem('media',${m.id})">删除</button>`:''}</div></div>`).join('')||'<div class="card-item">暂无媒体</div>';}
+function renderWishes(){document.getElementById('wishList').innerHTML=state.data.wishes.map(w=>`<div class="card-item"><b>${w.author}</b>: ${w.text}<div class="mt-1"><button class="btn btn-sm btn-outline-primary" onclick="likeWish(${w.id})">👍 ${w.likes||0}</button>${state.isAdmin?` <button class="btn btn-sm btn-outline-danger" onclick="delItem('wish',${w.id})">删除</button>`:''}</div></div>`).join('')||'<div class="card-item">暂无愿望</div>';}
+
+document.getElementById('btnWish').addEventListener('click',async()=>{const v=document.getElementById('wishInput').value.trim();if(!v)return;await fetch('/wish',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:v,author:state.me})});document.getElementById('wishInput').value='';fetchData();});
+document.getElementById('btnAddNews').addEventListener('click',async()=>{if(!state.isAdmin)return;const t=newsTitle.value.trim();const d=newsDesc.value.trim();const l=newsLink.value.trim();if(!t)return;await fetch('/news',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:t,desc:d,link:l})});newsTitle.value=newsDesc.value=newsLink.value='';fetchData();});
+document.getElementById('btnUpload').addEventListener('click',()=>{if(!state.isAdmin)return;const f=document.getElementById('mediaFile').files[0];if(!f){alert('请选择文件');return;}const type=document.querySelector('input[name=mtype]:checked').value;const xhr=new XMLHttpRequest();const fd=new FormData();fd.append('file',f);fd.append('type',type);xhr.open('POST','/upload');xhr.upload.onprogress=e=>{if(e.lengthComputable){progressWrap.classList.remove('hidden');progressPct.textContent=Math.round(e.loaded/e.total*100)+'%';}};xhr.onload=()=>{progressWrap.classList.add('hidden');progressPct.textContent='0%';if(xhr.status==200)fetchData();};xhr.send(fd);});
+
+window.delItem=async(type,id)=>{await fetch('/delete',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type,id})});fetchData();}
+window.likeWish=async(id)=>{await fetch('/like-wish',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id})});fetchData();}
+window.preview=html=>{previewBox.innerHTML=html;previewModal.classList.remove('hidden');}
+document.getElementById('btnClosePreview').onclick=()=>previewModal.classList.add('hidden');
+</script>
+</body>
+</html>
