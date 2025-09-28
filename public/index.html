@@ -1,171 +1,26 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>团队新闻空间</title>
-  <style>
-    body {
-      margin: 0; font-family: "Segoe UI", Arial, sans-serif;
-      background: radial-gradient(circle at top left, #0f2027, #203a43, #2c5364);
-      color: #fff;
-    }
-    header {
-      text-align: center; padding: 20px;
-      font-size: 24px; font-weight: bold;
-      background: rgba(0,0,0,0.3);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-    }
-    .container { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
-    .card {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.37);
-      backdrop-filter: blur(12px);
-      animation: fadeIn 0.6s ease;
-    }
-    @keyframes fadeIn { from {opacity:0; transform: translateY(10px);} to {opacity:1; transform: translateY(0);} }
-    .btn {
-      padding: 10px 16px; margin-top: 10px;
-      border: none; border-radius: 6px; cursor: pointer;
-      font-weight: bold;
-      background: linear-gradient(135deg,#00f260,#0575e6);
-      color: #fff; box-shadow: 0 0 8px rgba(0,242,96,0.6);
-      transition: all 0.3s ease;
-    }
-    .btn:hover { transform: scale(1.05); box-shadow: 0 0 15px rgba(0,242,96,1); }
-    .btn-danger { background: linear-gradient(135deg,#ff416c,#ff4b2b); box-shadow: 0 0 8px rgba(255,65,108,0.6); }
-    input, textarea, select {
-      width: 100%; padding: 10px; margin: 8px 0;
-      border-radius: 6px; border: none; outline: none;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-    }
-    input::placeholder, textarea::placeholder { color: #ccc; }
-    img, video { margin: 5px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
-    #syncStatus {
-      position: fixed; bottom: 10px; left: 10px;
-      font-size: 14px; font-weight: bold;
-    }
-  </style>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-<header>🚀 团队新闻空间</header>
-
-<div id="loginSection" class="container">
-  <div class="card">
-    <h3>登录</h3>
-    <input id="username" placeholder="请输入名字 (至少2个中文)">
-    <div id="adminPassDiv" style="display:none;">
-      <input id="password" type="password" placeholder="请输入管理员密码">
-    </div>
-    <button class="btn" onclick="login()">进入</button>
+<body class="bg-gray-100 text-gray-800">
+  <div class="container mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">团队新闻空间</h1>
+    <p class="mb-6">这是一个现代化的新闻、媒体、愿望池展示页面。</p>
+    <div id="content" class="grid gap-4"></div>
   </div>
-</div>
-
-<div id="mainSection" class="container" style="display:none;">
-  <div class="card">
-    <h3>云善绘新闻</h3>
-    <div id="newsList"></div>
-    <div id="newsForm" style="display:none;">
-      <input id="newsTitle" placeholder="新闻标题">
-      <input id="newsDesc" placeholder="新闻内容">
-      <input id="newsLink" placeholder="新闻链接 (可选)">
-      <button class="btn" onclick="postNews()">发布新闻</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>照片与视频</h3>
-    <div id="mediaList"></div>
-    <div id="mediaForm" style="display:none;">
-      <input type="file" id="mediaFile">
-      <select id="mediaType"><option value="image">图片</option><option value="video">视频</option></select>
-      <button class="btn" onclick="uploadMedia()">上传</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>愿望池</h3>
-    <div id="wishList"></div>
-    <textarea id="wishText" placeholder="写下你的愿望..."></textarea>
-    <button class="btn" onclick="postWish()">发表</button>
-  </div>
-</div>
-
-<div id="syncStatus">🟡 正在同步...</div>
-
-<script>
-let isAdmin = false;
-let username = "";
-let syncStatus = document.getElementById("syncStatus");
-
-function login(){
-  username = document.getElementById("username").value.trim();
-  if(!/^[\u4e00-\u9fa5]{2,}$/.test(username)){ alert("请输入至少两个中文名字"); return; }
-  if(username === "guangminghui"){
-    document.getElementById("adminPassDiv").style.display="block";
-    let pwd = document.getElementById("password").value.trim();
-    if(pwd === "guangminghui888"){ isAdmin = true; }
-    else { alert("管理员密码错误"); return; }
-  }
-  document.getElementById("loginSection").style.display="none";
-  document.getElementById("mainSection").style.display="flex";
-  if(isAdmin){
-    document.getElementById("newsForm").style.display="block";
-    document.getElementById("mediaForm").style.display="block";
-  }
-}
-
-async function fetchData(){
-  try{
-    syncStatus.innerText="🟡 正在同步...";
-    let res=await fetch("/api/data");
-    let data=await res.json();
-    renderData(data);
-    syncStatus.innerText="🟢 已同步";
-  }catch(e){ syncStatus.innerText="🔴 同步失败"; }
-}
-setInterval(fetchData,3000); fetchData();
-
-function renderData(data){
-  document.getElementById("newsList").innerHTML=data.news.map(n=>
-    `<div>${n.title} - ${n.desc} ${isAdmin?`<button class='btn btn-danger' onclick="delItem('news',${n.id})">删除</button>`:""}</div>`).join("");
-  document.getElementById("mediaList").innerHTML=data.media.map(m=>
-    m.type==="image"?`<img src="${m.file}" width="120">`:`<video src="${m.file}" width="160" controls></video>`).join("");
-  document.getElementById("wishList").innerHTML=data.wishes.map(w=>
-    `<div>${w.text} ${isAdmin?`<button class='btn btn-danger' onclick="delItem('wishes',${w.id})">删除</button>`:""}</div>`).join("");
-}
-
-async function postNews(){
-  let title=document.getElementById("newsTitle").value;
-  let desc=document.getElementById("newsDesc").value;
-  let link=document.getElementById("newsLink").value;
-  await fetch("/api/news",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,desc,link})});
-  fetchData();
-}
-
-async function uploadMedia(){
-  let file=document.getElementById("mediaFile").files[0];
-  let type=document.getElementById("mediaType").value;
-  let form=new FormData(); form.append("file",file); form.append("type",type);
-  await fetch("/api/upload",{method:"POST",body:form});
-  fetchData();
-}
-
-async function postWish(){
-  let text=document.getElementById("wishText").value;
-  await fetch("/api/wish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
-  fetchData();
-}
-
-async function delItem(type,id){
-  await fetch(`/api/admin/${type}/${id}`,{method:"DELETE"});
-  fetchData();
-}
-</script>
+  <script>
+    fetch('/data').then(res => res.json()).then(data => {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <div><h2 class="text-xl font-semibold">新闻</h2><pre>${JSON.stringify(data.news, null, 2)}</pre></div>
+        <div><h2 class="text-xl font-semibold">媒体</h2><pre>${JSON.stringify(data.media, null, 2)}</pre></div>
+        <div><h2 class="text-xl font-semibold">许愿池</h2><pre>${JSON.stringify(data.wishes, null, 2)}</pre></div>
+      `;
+    });
+  </script>
 </body>
 </html>
