@@ -27,8 +27,14 @@
       width:100%;max-width:420px;background:rgba(255,255,255,0.07);
       border-radius:14px;padding:28px;box-shadow:0 8px 30px rgba(0,0,0,0.6);
       border:1px solid rgba(255,255,255,0.08);text-align:center;opacity:0;
-      transform:translateY(30px);animation:fadeInUp 1.2s 1s forwards;z-index:1;
+      transform:translateY(30px);
       backdrop-filter:blur(8px);
+      transition:opacity 1.2s ease, transform 1.2s ease;
+      z-index:1;
+    }
+    main.card.show {
+      opacity:1;
+      transform:translateY(0);
     }
     header .brand{font-size:20px;font-weight:700;letter-spacing:0.6px}
     header .title{font-size:28px;font-weight:800;margin-top:6px}
@@ -42,7 +48,6 @@
       border-radius:12px;text-decoration:none;font-weight:700;color:#0f1724;background:#e6f0f6}
     .hint{font-size:12px;color:#9aa6b2;text-align:center;margin-top:12px}
     footer{font-size:12px;color:#9aa6b2;text-align:center;margin-top:14px}
-    @keyframes fadeInUp{to{opacity:1;transform:translateY(0)}}
     @media(min-width:420px){.buttons{flex-direction:row}}
 
     /* 启动画面样式 */
@@ -75,7 +80,7 @@
   <div class="video-overlay"></div>
 
   <!-- 主界面 -->
-  <main class="card" role="main">
+  <main id="mainCard" class="card" role="main">
     <header>
       <div class="brand">洛卡旅业（LokaLocal）下载</div>
       <div class="title">欢迎使用 LokaLocal</div>
@@ -97,6 +102,7 @@
     const bgVideo = document.getElementById('bgVideo');
     const startup = document.getElementById('startup');
     const startupVideo = document.getElementById('startupVideo');
+    const mainCard = document.getElementById('mainCard');
 
     // 尝试播放背景视频
     async function tryAutoPlay() {
@@ -109,14 +115,18 @@
       }
     }
 
-    // 启动视频播放完后淡出
+    // 启动视频播放完后，淡出并显示主界面
     startupVideo.addEventListener('ended', () => {
       setTimeout(() => {
         startup.classList.add('fade-out');
-        setTimeout(() => startup.remove(), 1000);
-      }, 1500);
+        setTimeout(() => {
+          startup.remove();
+          mainCard.classList.add('show'); // 弹出主界面
+        }, 1000);
+      }, 1500); // 视频结束后延迟 1.5 秒
     });
 
+    // 页面加载后启动背景视频
     window.addEventListener('load', () => {
       setTimeout(tryAutoPlay, 300);
     });
