@@ -44,13 +44,37 @@
     footer{font-size:12px;color:#9aa6b2;text-align:center;margin-top:14px}
     @keyframes fadeInUp{to{opacity:1;transform:translateY(0)}}
     @media(min-width:420px){.buttons{flex-direction:row}}
+
+    /* 启动画面样式 */
+    #startup {
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:#000;z-index:9999;display:flex;align-items:center;justify-content:center;
+      overflow:hidden;transition:opacity 1s ease;
+    }
+    #startup video {
+      width:100%;height:100%;object-fit:cover;
+    }
+    #startup.fade-out {
+      opacity:0;
+      pointer-events:none;
+    }
   </style>
 </head>
 <body>
+  <!-- 启动视频 -->
+  <div id="startup">
+    <video id="startupVideo" autoplay playsinline>
+      <source src="startup.mp4" type="video/mp4">
+    </video>
+  </div>
+
+  <!-- 背景视频 -->
   <video id="bgVideo" class="bg-video" loop playsinline>
     <source src="HnVideoEditor_2025_10_10_131846142.mp4" type="video/mp4">
   </video>
   <div class="video-overlay"></div>
+
+  <!-- 主界面 -->
   <main class="card" role="main">
     <header>
       <div class="brand">洛卡旅业（LokaLocal）下载</div>
@@ -68,19 +92,33 @@
     <div class="hint">支持洛卡旅业就＝支持云善绘</div>
     <footer>参与洛卡旅业开启财富密码</footer>
   </main>
+
   <script>
-    const video = document.getElementById('bgVideo');
+    const bgVideo = document.getElementById('bgVideo');
+    const startup = document.getElementById('startup');
+    const startupVideo = document.getElementById('startupVideo');
+
+    // 尝试播放背景视频
     async function tryAutoPlay() {
       try {
-        video.muted = false;
-        await video.play();
+        bgVideo.muted = false;
+        await bgVideo.play();
       } catch (e) {
-        video.muted = true;
-        await video.play().catch(()=>{});
+        bgVideo.muted = true;
+        await bgVideo.play().catch(()=>{});
       }
     }
+
+    // 启动视频播放完后淡出
+    startupVideo.addEventListener('ended', () => {
+      setTimeout(() => {
+        startup.classList.add('fade-out');
+        setTimeout(() => startup.remove(), 1000);
+      }, 1500);
+    });
+
     window.addEventListener('load', () => {
-      setTimeout(tryAutoPlay, 200);
+      setTimeout(tryAutoPlay, 300);
     });
   </script>
 </body>
